@@ -126,19 +126,14 @@ namespace HandGestureRecognition
                         int moveCalc = pixelData[i] - pixelDataLast[i];
                         int temp;
                         int tableTemp = pixelData[i] - tableData[i];
-                        /*if (d <= 0)
-                            temp = MAX_INT16;
-                        else
-                            temp = pixelData[i] - pixelDataLast[i];
-                        * */
 
                         if (thisX % 640 > (frameWidth - cropWidth) / 2 && thisX % 640 < frameWidth - (frameWidth - cropWidth) / 2 && thisY < cropHeight)
                         {
-                            if (d <= 0 || Math.Abs(tableTemp) < 50 || d > 6000)
+                            if (d <= 0 || Math.Abs(tableTemp) < 50 || d > 6000) // contour information
                                 temp = 0;
                             else
                                 temp = MAX_INT32;
-                            if (d <= 0 || Math.Abs(tableTemp) < 50 || d < tableData[i] - thickness || d > 6000)
+                            if (d <= 0 || Math.Abs(tableTemp) < 50 || d < tableData[i] - thickness || d > 6000) // table touching information
                                 moveData[thisY, thisX-80, 0] = 0;
                             else
                                 moveData[thisY, thisX-80, 0] = 255;
@@ -146,11 +141,6 @@ namespace HandGestureRecognition
                             frameData[thisY, thisX-80, 0] = (short)temp;
                         }
 
-
-                        /*if (d >= 0 && Math.Abs(moveCalc) > 75 && d < 10000)
-                            moveData[thisY, thisX, 0] = 255;
-                        else
-                            moveData[thisY, thisX, 0] = 0;*/
                     }
                     pixelDataLast = (short[])pixelData.Clone();
 
@@ -275,12 +265,6 @@ namespace HandGestureRecognition
 
         private void DrawAndComputeFingersNum()
         {
-            /*BlobTrackerAutoParam<Gray> param = new BlobTrackerAutoParam<Gray>();
-            param.FGDetector = new FGDetector<Gray>(Emgu.CV.CvEnum.FORGROUND_DETECTOR_TYPE.FGD);
-            param.FGTrainFrames = 10;
-            BlobTrackerAuto<Gray> tracker = new BlobTrackerAuto<Gray>(param);*/
-
-
             int fingerNum = 0;
 
             #region defects drawing

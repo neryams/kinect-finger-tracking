@@ -37,7 +37,7 @@ namespace HandGestureRecognition
         bool watching;
 
         Vector victor, mrKalman;
-        System.Drawing.Point last,lastEst;
+        System.Drawing.Point last,lastEst,memoryPoint;
         Kalman kf;
         SyntheticData kfData;
 
@@ -46,6 +46,7 @@ namespace HandGestureRecognition
             watching = false;
             clicking = false;
             scrolling = false;
+            memoryPoint = new System.Drawing.Point(); 
 
             kfData = new SyntheticData();
             keyboard = new KeyboardHookListener(new GlobalHooker());
@@ -137,6 +138,11 @@ namespace HandGestureRecognition
             return 0;
         }*/
 
+        private int pointDist(System.Drawing.Point point1, System.Drawing.Point point2)
+        {
+            return Math.Abs(point1.X - point2.X) + Math.Abs(point1.Y - point2.Y);
+        }
+
         private int UpdateVectors(bool watching, ArrayList touchPoints)
         {
             int state = 0;
@@ -174,7 +180,7 @@ namespace HandGestureRecognition
                     }
                 }*/
                 #endregion
-                float distanceA = 0;
+                float distanceA = 0; // get the closest point to the last used point (sticky)
                 float distanceB = -1;
                 int fingerToUse = 0;
                 int index = 0;
@@ -182,7 +188,7 @@ namespace HandGestureRecognition
                 if (touchPoints.Count > 1)
                     foreach (System.Drawing.Point newpoint in touchPoints)
                     {
-                        distanceA = Math.Abs(newpoint.X - last.X) + Math.Abs(newpoint.Y - last.Y);
+                        distanceA = pointDist(newpoint, last);
                         if (distanceA < distanceB || distanceB < 0)
                         {
                             distanceB = distanceA;
@@ -197,8 +203,14 @@ namespace HandGestureRecognition
 
                 if (watching && !stopped)
                 {
-                    if (last.X == 0 && last.Y == 0)
+                    if (last.X == 0 && last.Y == 0) // first run finger down
+                    {
                         victor.X = victor.Y = 0;
+                        if (pointDist(newp, memoryPoint) < 5) // click if finger is put down in the same spot
+                        {
+                            mouse_event(MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_LEFTUP, Cursor.Position.X, Cursor.Position.Y, 0, dwExtraInfo);
+                        }
+                    }
                     else
                     {
                         victor.X = newp.X - last.X;
@@ -221,7 +233,7 @@ namespace HandGestureRecognition
                     {
                         UpdateCursor();
                     }
-                    last = newp;
+                    last = memoryPoint = newp;
                     lastEst = newpEst;
                 }
 
