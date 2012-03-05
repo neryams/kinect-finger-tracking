@@ -28,13 +28,17 @@ namespace HandGestureRecognition
         private const int MOUSEEVENTF_RIGHTDOWN = 0x08;
         private const int MOUSEEVENTF_RIGHTUP = 0x10;
         private const int MOUSEEVENTF_WHEEL = 0x800;
-        private const int WHEEL_DELTA = 100;
-        private const float CURR_SEN = 6.5F;
+        private const int WHEEL_DELTA = 15;
 
         delegate void KeyHandler(object source, KeyEventArgs arg);
-        bool clicking;
+        bool holding;
         bool scrolling;
         bool watching;
+        bool click_watch;
+        DateTime click_time;
+        bool rightclick_watch;
+        DateTime rightclick_time;
+        private float CURR_SEN = 10F;
 
         Vector victor, mrKalman;
         System.Drawing.Point last,lastEst,memoryPoint;
@@ -43,9 +47,7 @@ namespace HandGestureRecognition
 
         public MouseDriver()
         {
-            watching = false;
-            clicking = false;
-            scrolling = false;
+            watching = holding = scrolling = click_watch = rightclick_watch = false;
             memoryPoint = new System.Drawing.Point(); 
 
             kfData = new SyntheticData();
@@ -85,43 +87,49 @@ namespace HandGestureRecognition
                 kfData.state.SetValue(0);
                 initKalman();
             }
+            if (touchPoints.Count < 2 && holding)
+            {
+                mouse_event(MOUSEEVENTF_LEFTUP, Cursor.Position.X, Cursor.Position.Y, 0, dwExtraInfo);
+                holding = false;
+            }
+            if (click_watch)
+            {
+                if ((DateTime.Now - click_time).Milliseconds > 500 || touchPoints.Count > 1 || pointDist(memoryPoint, Cursor.Position) > 20)
+                {
+                    memoryPoint = Cursor.Position;
+                    click_watch = false;
+                }
+                else if (!watching)
+                {
+                    mouse_event(MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_LEFTUP, Cursor.Position.X, Cursor.Position.Y, 0, dwExtraInfo);
+                    click_watch = rightclick_watch = false;
+                }
+            }
+            else if (rightclick_watch)
+            {
+                if (Math.Abs(memoryPoint.Y - Cursor.Position.Y) > 15 || touchPoints.Count != 2) // Figure out whether they're scrolling or not
+                {
+                    scrolling = true;
+                    rightclick_watch = false;
+                } 
+                if (!watching)
+                {
+                    mouse_event(MOUSEEVENTF_RIGHTDOWN | MOUSEEVENTF_RIGHTUP, Cursor.Position.X, Cursor.Position.Y, 0, dwExtraInfo);
+                    click_watch = rightclick_watch = false;
+                }
+            }
 
             int state = UpdateVectors(watching, touchPoints);
-
-            if (touchPoints.Count < 2 )
+            if (touchPoints.Count == 3 && !holding && !scrolling)
             {
-                if (clicking)
-                {
-                    mouse_event(MOUSEEVENTF_LEFTUP, Cursor.Position.X, Cursor.Position.Y, 0, dwExtraInfo);
-                    clicking = false;
-                }
-            }
-            if (touchPoints.Count != 3)
-            {
-                scrolling = false;
-            }
-            if (touchPoints.Count == 2 && !clicking)
-            {
-                clicking = true;
+                holding = true;
+                if (rightclick_watch)
+                    rightclick_watch = false;
                 mouse_event(MOUSEEVENTF_LEFTDOWN, Cursor.Position.X, Cursor.Position.Y, 0, dwExtraInfo);
             }
-            if (touchPoints.Count == 3)
+            if (touchPoints.Count < 2 && scrolling)
             {
-                if (clicking)
-                {
-                    mouse_event(MOUSEEVENTF_LEFTUP, Cursor.Position.X, Cursor.Position.Y, 0, dwExtraInfo);
-                    clicking = false;
-                }
-                if (victor.Y > 0)
-                {
-                    mouse_event(MOUSEEVENTF_WHEEL, 0, 0, WHEEL_DELTA, (UIntPtr)0);
-                    scrolling = true;
-                }
-                if (victor.Y < 0)
-                {
-                    mouse_event(MOUSEEVENTF_WHEEL, 0, 0, -1 * WHEEL_DELTA, (UIntPtr)0);
-                    scrolling = true;
-                }
+                scrolling = false;
             }
             
             return watching;
@@ -206,9 +214,11 @@ namespace HandGestureRecognition
                     if (last.X == 0 && last.Y == 0) // first run finger down
                     {
                         victor.X = victor.Y = 0;
-                        if (pointDist(newp, memoryPoint) < 5) // click if finger is put down in the same spot
+                        if (!click_watch) // click if finger might not already be clicking
                         {
-                            mouse_event(MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_LEFTUP, Cursor.Position.X, Cursor.Position.Y, 0, dwExtraInfo);
+                            memoryPoint = Cursor.Position;
+                            click_watch = rightclick_watch = true;
+                            click_time = rightclick_time = DateTime.Now;
                         }
                     }
                     else
@@ -233,7 +243,9 @@ namespace HandGestureRecognition
                     {
                         UpdateCursor();
                     }
-                    last = memoryPoint = newp;
+                    else if (mrKalman.Y != 0)
+                            mouse_event(MOUSEEVENTF_WHEEL, 0, 0, (int)(WHEEL_DELTA * mrKalman.Y * CURR_SEN), (UIntPtr)0);
+                    last = newp;
                     lastEst = newpEst;
                 }
 
@@ -246,6 +258,9 @@ namespace HandGestureRecognition
             System.Drawing.Point position = Cursor.Position;
             position.Offset((int)((mrKalman.X) * CURR_SEN), (int)((mrKalman.Y) * CURR_SEN * -1));
             Cursor.Position = position;
+            CURR_SEN = (float)mrKalman.Length*1.5F;
+            if (CURR_SEN < 5 && CURR_SEN != 0)
+                CURR_SEN = 3;
             kfData.GoToNextState();
         }
     }
