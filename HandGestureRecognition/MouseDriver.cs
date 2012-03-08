@@ -17,7 +17,6 @@ namespace HandGestureRecognition
     class MouseDriver
     {
         KeyboardHookListener keyboard;
-        UIntPtr dwExtraInfo;
         [DllImport("user32.dll", CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall)]
         static extern void mouse_event(int dwFlags, int dx, int dy,
         int dwData, UIntPtr dwExtraInfo);
@@ -28,7 +27,7 @@ namespace HandGestureRecognition
         private const int MOUSEEVENTF_RIGHTDOWN = 0x08;
         private const int MOUSEEVENTF_RIGHTUP = 0x10;
         private const int MOUSEEVENTF_WHEEL = 0x800;
-        private const int WHEEL_DELTA = 15;
+        private const int WHEEL_DELTA = 6;
 
         delegate void KeyHandler(object source, KeyEventArgs arg);
         bool holding;
@@ -38,7 +37,9 @@ namespace HandGestureRecognition
         DateTime click_time;
         bool rightclick_watch;
         DateTime rightclick_time;
-        private float CURR_SEN = 10F;
+        private float CUR_SPEED;
+        private float SCR_SPEED;
+        public int sensitivity;
 
         Vector victor, mrKalman;
         System.Drawing.Point last,lastEst,memoryPoint;
@@ -48,7 +49,10 @@ namespace HandGestureRecognition
         public MouseDriver()
         {
             watching = holding = scrolling = click_watch = rightclick_watch = false;
-            memoryPoint = new System.Drawing.Point(); 
+            memoryPoint = new System.Drawing.Point();
+            sensitivity = 10;
+            CUR_SPEED = 0;
+            SCR_SPEED = 0;
 
             kfData = new SyntheticData();
             keyboard = new KeyboardHookListener(new GlobalHooker());
@@ -244,11 +248,10 @@ namespace HandGestureRecognition
                         UpdateCursor();
                     }
                     else if (mrKalman.Y != 0)
-                            mouse_event(MOUSEEVENTF_WHEEL, 0, 0, (int)(WHEEL_DELTA * mrKalman.Y * CURR_SEN), (UIntPtr)0);
+                        mouse_event(MOUSEEVENTF_WHEEL, 0, 0, (int)(WHEEL_DELTA * mrKalman.Y * SCR_SPEED), (UIntPtr)0);
                     last = newp;
                     lastEst = newpEst;
                 }
-
             }
             return state;
         }
@@ -256,11 +259,17 @@ namespace HandGestureRecognition
         private void UpdateCursor()
         {
             System.Drawing.Point position = Cursor.Position;
-            position.Offset((int)((mrKalman.X) * CURR_SEN), (int)((mrKalman.Y) * CURR_SEN * -1));
+            position.Offset((int)((mrKalman.X) * CUR_SPEED), (int)((mrKalman.Y) * CUR_SPEED * -1));
             Cursor.Position = position;
-            CURR_SEN = (float)mrKalman.Length*1.5F;
-            if (CURR_SEN < 5 && CURR_SEN != 0)
-                CURR_SEN = 3;
+            double adjuster = ((double)mrKalman.Length)/5;
+            if(adjuster > Math.PI)
+                adjuster = Math.PI;
+            SCR_SPEED = ((float)(Math.Cos(adjuster) * -1 * (sensitivity - 2)) + sensitivity)*3;
+            CUR_SPEED = ((float)(mrKalman.Length * sensitivity)) / 5;
+            if (mrKalman.Length == 0)
+                CUR_SPEED = 0;
+            if (CUR_SPEED > 0 && CUR_SPEED < 6)
+                CUR_SPEED = 4;
             kfData.GoToNextState();
         }
     }

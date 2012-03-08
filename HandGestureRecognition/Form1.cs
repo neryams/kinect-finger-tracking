@@ -13,9 +13,9 @@ using System.Collections;
 
 namespace HandGestureRecognition
 {
-    public partial class Form1 : Form
+    public partial class MainWindow : Form
     {
-
+        private const Int32 MAX_INT32 = Int32.MaxValue;
         Image<Gray, Int16> currentFrame;
         Image<Gray, byte> movement;
         Image<Bgr, byte> colorFrame;
@@ -40,19 +40,14 @@ namespace HandGestureRecognition
         MCvConvexityDefect[] defectArray;
         MCvBox2D box;
 
-        Int32 MAX_INT32;
+        Seq<PointF> dPointList; // All the end points on the contour
+        Seq<PointF> realendPointList; // All the end points on the contour
 
-
-        //eddie
-        Seq<PointF> dPointList; // All the points on the contour
-        Seq<PointF> realendPointList;
-
-        public Form1()
+        public MainWindow()
         {
             InitializeComponent();
             box = new MCvBox2D();
             mouse = new MouseDriver();
-            MAX_INT32 = Int32.MaxValue;
             touchPoints = new ArrayList();
             thickness = 100;
             cropWidth = 480;
@@ -72,24 +67,6 @@ namespace HandGestureRecognition
         {
             tableData = new short[cal.PixelDataLength];
             cal.CopyPixelDataTo(this.tableData);
-        }
-
-        private short[] trimImage(DepthImageFrame frame)
-        {
-            int pixeldatalength = frame.PixelDataLength;
-            short[] pixels = new short[pixeldatalength];
-            short[] newImagePixels = new short[153600];
-            frame.CopyPixelDataTo(pixels);
-            int newIndex = 0;
-            for (int x = 0; x < (640 * 320); x++)
-            {
-                if (x % 640 > 80 && x % 640 <= 560)
-                {
-                    newImagePixels[newIndex] = pixels[x];
-                    newIndex++;
-                }
-            }
-            return newImagePixels;
         }
 
         void DepthImageReady(object sender, DepthImageFrameReadyEventArgs e)
@@ -337,6 +314,11 @@ namespace HandGestureRecognition
         private void trackBar1_Scroll(object sender, EventArgs e)
         {
             thickness = threshold.Value;
+        }
+
+        private void sensitivity_change(object sender, EventArgs e)
+        {
+            mouse.sensitivity = sensitivity.Value;
         }
     }
 }
