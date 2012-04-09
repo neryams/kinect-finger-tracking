@@ -17,6 +17,7 @@ namespace HandGestureRecognition
     class MouseDriver
     {
         KeyboardHookListener keyboard;
+        UIntPtr dwExtraInfo;
         [DllImport("user32.dll", CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall)]
         static extern void mouse_event(int dwFlags, int dx, int dy,
         int dwData, UIntPtr dwExtraInfo);
@@ -37,9 +38,9 @@ namespace HandGestureRecognition
         DateTime click_time;
         bool rightclick_watch;
         DateTime rightclick_time;
-        private float CUR_SPEED;
-        private float SCR_SPEED;
-        public int sensitivity;
+		private float CUR_SPEED;
+		private float SCR_SPEED;
+		public int sensitivity;
 
         Vector victor, mrKalman;
         System.Drawing.Point last,lastEst,memoryPoint;
@@ -49,10 +50,10 @@ namespace HandGestureRecognition
         public MouseDriver()
         {
             watching = holding = scrolling = click_watch = rightclick_watch = false;
-            memoryPoint = new System.Drawing.Point();
-            sensitivity = 10;
-            CUR_SPEED = 0;
-            SCR_SPEED = 0;
+			sensitivity = 10;
+			CUR_SPEED = 0;
+			SCR_SPEED = 0;
+            memoryPoint = new System.Drawing.Point(); 
 
             kfData = new SyntheticData();
             keyboard = new KeyboardHookListener(new GlobalHooker());
@@ -96,7 +97,7 @@ namespace HandGestureRecognition
                 mouse_event(MOUSEEVENTF_LEFTUP, Cursor.Position.X, Cursor.Position.Y, 0, dwExtraInfo);
                 holding = false;
             }
-            if (click_watch)
+            if (click_watch) // Single tap click
             {
                 if ((DateTime.Now - click_time).Milliseconds > 500 || touchPoints.Count > 1 || pointDist(memoryPoint, Cursor.Position) > 20)
                 {
@@ -109,18 +110,23 @@ namespace HandGestureRecognition
                     click_watch = rightclick_watch = false;
                 }
             }
-            else if (rightclick_watch)
+            if (rightclick_watch) // Double tap right click
             {
                 if (Math.Abs(memoryPoint.Y - Cursor.Position.Y) > 15 || touchPoints.Count != 2) // Figure out whether they're scrolling or not
                 {
                     scrolling = true;
                     rightclick_watch = false;
-                } 
-                if (!watching)
+                }
+                if (!watching || (watching && !click_watch))
                 {
                     mouse_event(MOUSEEVENTF_RIGHTDOWN | MOUSEEVENTF_RIGHTUP, Cursor.Position.X, Cursor.Position.Y, 0, dwExtraInfo);
                     click_watch = rightclick_watch = false;
                 }
+            }
+            else if (watching && touchPoints.Count == 2)
+            {
+                rightclick_watch = true;
+                rightclick_time = DateTime.Now;
             }
 
             int state = UpdateVectors(watching, touchPoints);
@@ -252,6 +258,7 @@ namespace HandGestureRecognition
                     last = newp;
                     lastEst = newpEst;
                 }
+
             }
             return state;
         }
@@ -261,15 +268,28 @@ namespace HandGestureRecognition
             System.Drawing.Point position = Cursor.Position;
             position.Offset((int)((mrKalman.X) * CUR_SPEED), (int)((mrKalman.Y) * CUR_SPEED * -1));
             Cursor.Position = position;
+			
+			// V3
+			SCR_SPEED = ((float)(Math.Cos(adjuster) * -1 * (sensitivity - 2)) + sensitivity)*3;
+			CUR_SPEED = ((float)(mrKalman.Length * sensitivity)) / 5;
+			if (mrKalman.Length == 0)
+				CUR_SPEED = 0;
+			if (CUR_SPEED > 0 && CUR_SPEED < 6)
+				CUR_SPEED = 4;
+			
+			/* V1
+            CURR_SEN = (float)mrKalman.Length*1.5F;
+            if (CURR_SEN < 5 && CURR_SEN != 0)
+                CURR_SEN = 3;
+			*/
+			/* V0
+            //CURR_SEN = (float)mrKalman.Length*1.5F;
             double adjuster = ((double)mrKalman.Length)/5;
             if(adjuster > Math.PI)
                 adjuster = Math.PI;
-            SCR_SPEED = ((float)(Math.Cos(adjuster) * -1 * (sensitivity - 2)) + sensitivity)*3;
-            CUR_SPEED = ((float)(mrKalman.Length * sensitivity)) / 5;
-            if (mrKalman.Length == 0)
-                CUR_SPEED = 0;
-            if (CUR_SPEED > 0 && CUR_SPEED < 6)
-                CUR_SPEED = 4;
+            CURR_SEN = (float)(Math.Cos(adjuster) * -15) + 15;
+            Console.Out.WriteLine(CURR_SEN);
+			*/
             kfData.GoToNextState();
         }
     }
